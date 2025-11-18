@@ -72,7 +72,7 @@ jobs:
       - name: Upload summaries to Hub
         env:
           HF_TOKEN: ${{ secrets.TRANSFORMERS_HUB_BOT_HF_TOKEN }}
-          CIRCLECI_RESULTS_DATASET_ID: transformers-community/circleci-test-results
+          CIRCLECI_RESULTS_DATASET_ID: "transformers-community/circleci-test-results"
         run: |
           python utils/upload_circleci_results.py --source-dir outputs --dataset-id "${CIRCLECI_RESULTS_DATASET_ID}"
 
@@ -95,18 +95,14 @@ jobs:
           fi
           SPACE_SLUG="transformers-community/circleci-test-collection-helper"
           SPACE_BASE="https://huggingface.co/spaces/${SPACE_SLUG}"
-          QUERY=$(python - <<'PY'
-import os
-from urllib.parse import urlencode
-
-params = {
-    "repo": os.environ.get("github_repository"),
-    "pr": os.environ.get("pr_number"),
-    "sha": os.environ.get("pr_sha"),
-}
-print(urlencode({k: v for k, v in params.items() if v}))
-PY
-)
+          repo_enc=$(jq -rn --arg v "${github_repository}" '$v|@uri')
+          pr_enc=$(jq -rn --arg v "${pr_number}" '$v|@uri')
+          sha_enc=$(jq -rn --arg v "${pr_sha}" '$v|@uri')
+          parts=()
+          [ -n "${repo_enc}" ] && parts+=("repo=${repo_enc}")
+          [ -n "${pr_enc}" ] && parts+=("pr=${pr_enc}")
+          [ -n "${sha_enc}" ] && parts+=("sha=${sha_enc}")
+          QUERY=$(IFS="&"; echo "${parts[*]}")
           if [ -n "$QUERY" ]; then
             SPACE_URL="${SPACE_BASE}?${QUERY}"
           else
