@@ -162,39 +162,34 @@ jobs:
       - name: Post comment with helper link
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          github_repository: ${{ github.repository }}
-          pr_number: ${{ github.event.pull_request.number }}
-          pr_sha: ${{ github.event.pull_request.head.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ ! -f outputs/failure_summary.json ]; then
+          COMMIT_SHORT="${PR_SHA:0:12}"
+          SUMMARY_FILE="pr-${PR_NUMBER}/sha-${COMMIT_SHORT}/failure_summary.json"
+          
+          if [ ! -f "$SUMMARY_FILE" ]; then
             echo "failure_summary.json missing, skipping comment."
             exit 0
           fi
-          failures=$(python -c "import json; print(len(json.load(open('outputs/failure_summary.json'))['failures']))")
+          
+          failures=$(jq '.failures | length' "$SUMMARY_FILE")
           if [ "$failures" -eq 0 ]; then
             echo "No failures detected, skipping PR comment."
             exit 0
           fi
-          SPACE_SLUG="transformers-community/circleci-test-collection-helper"
-          SPACE_BASE="https://huggingface.co/spaces/${SPACE_SLUG}"
-          repo_enc=$(jq -rn --arg v "${github_repository}" '$v|@uri')
-          pr_enc=$(jq -rn --arg v "${pr_number}" '$v|@uri')
-          sha_enc=$(jq -rn --arg v "${pr_sha}" '$v|@uri')
-          parts=()
-          [ -n "${repo_enc}" ] && parts+=("repo=${repo_enc}")
-          [ -n "${pr_enc}" ] && parts+=("pr=${pr_enc}")
-          [ -n "${sha_enc}" ] && parts+=("sha=${sha_enc}")
-          QUERY=$(IFS="&"; echo "${parts[*]}")
-          if [ -n "$QUERY" ]; then
-            SPACE_URL="${SPACE_BASE}?${QUERY}"
-          else
-            SPACE_URL="${SPACE_BASE}"
-          fi
-          body="View the CircleCI test collection helper for this PR:\n\n${SPACE_URL}"
+          
+          # Build Space URL with encoded parameters
+          repo_enc=$(jq -rn --arg v "$GITHUB_REPOSITORY" '$v|@uri')
+          pr_enc=$(jq -rn --arg v "$PR_NUMBER" '$v|@uri')
+          sha_enc=$(jq -rn --arg v "$PR_SHA" '$v|@uri')
+          SPACE_URL="https://huggingface.co/spaces/transformers-community/circleci-test-collection-helper?repo=${repo_enc}&pr=${pr_enc}&sha=${sha_enc}"
+          
+          # Post comment (using printf for proper newlines)
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/${github_repository}/issues/${pr_number}/comments" \
-            -f body="$body"
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f body="$(printf "View the CircleCI test collection helper for this PR:\n\n%s" "$SPACE_URL")"
