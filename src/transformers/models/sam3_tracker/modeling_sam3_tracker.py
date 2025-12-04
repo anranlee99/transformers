@@ -107,7 +107,11 @@ class Sam3TrackerFeedForward(nn.Module):
         return hidden_states
 
 
-@auto_docstring
+@auto_docstring(
+    custom_intro="""
+    Segment Anything Model 3 (SAM 3) for generating segmentation masks, ...
+    """
+)
 class Sam3TrackerPreTrainedModel(PreTrainedModel):
     config_class = Sam3TrackerConfig
     base_model_prefix = "sam3_tracker"
